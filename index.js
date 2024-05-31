@@ -3,7 +3,7 @@ const app = express()
 require('dotenv').config()
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
-const { MongoClient, ServerApiVersion } = require('mongodb')
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const jwt = require('jsonwebtoken')
 const morgan = require('morgan')
 const port = process.env.PORT || 8000
@@ -43,6 +43,8 @@ const client = new MongoClient(process.env.DB_URI, {
 })
 async function run() {
   try {
+    const usersCollection = client.db('GrandStayDB').collection('users')
+    const roomsCollection = client.db('GrandStayDB').collection('rooms')
     // auth related api
     app.post('/jwt', async (req, res) => {
       const user = req.body
@@ -54,7 +56,7 @@ async function run() {
         .cookie('token', token, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict', //samesite strict must be given in developement process or the browser will not save the token
         })
         .send({ success: true })
     })
@@ -67,7 +69,7 @@ async function run() {
             maxAge: 0,
             secure: process.env.NODE_ENV === 'production',
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-          })
+          })// browser roles must be provided clearly or else cookie will not clear from the browser
           .send({ success: true })
         console.log('Logout successful')
       } catch (err) {
@@ -76,7 +78,7 @@ async function run() {
     })
 
     // Save or modify user email, status in DB
-    app.put('/users/:email', async (req, res) => {
+    app.put('/users/:email', async (req, res) => { //put used to perform both post and update operation
       const email = req.params.email
       const user = req.body
       const query = { email: email }
@@ -91,6 +93,30 @@ async function run() {
         },
         options
       )
+      res.send(result)
+    })
+
+    //Get rooms data
+    app.get('/rooms', async (req, res) => {
+      const result = await roomsCollection.find().toArray()
+      res.send(result)
+    })
+    //get room for host 
+    app.get('/rooms/:email',async(req,res)=>{
+      const email = req.params.email
+      const result = await roomsCollection.find({'host.email':email}).toArray //must use '' to access data without error
+      res.send(result)
+    })
+    //Get single room data
+    app.get('/room/:id', async (req, res) => {
+      const id = req.params.id
+      const result = await roomsCollection.findOne({ _id: new ObjectId(id) })
+      res.send(result)
+    })
+    //Save room info to database | AddRoom.jsx client
+    app.post('/rooms', verifyToken, async (req, res) => {
+      const room = req.body
+      const result = await roomsCollection.insertOne(room)
       res.send(result)
     })
 
