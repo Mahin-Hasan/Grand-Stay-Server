@@ -7,6 +7,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const jwt = require('jsonwebtoken')
 const morgan = require('morgan')
 const port = process.env.PORT || 8000
+const stripe = require('stripe').Stripe(process.env.PAYMENT_SECRET_KEY)
 
 // middleware
 const corsOptions = {
@@ -45,6 +46,7 @@ async function run() {
   try {
     const usersCollection = client.db('GrandStayDB').collection('users')
     const roomsCollection = client.db('GrandStayDB').collection('rooms')
+    const bookingsCollection = client.db('GrandStayDB').collection('bookings')
     // auth related api
     app.post('/jwt', async (req, res) => {
       const user = req.body
@@ -95,6 +97,12 @@ async function run() {
       )
       res.send(result)
     })
+    //Get user Role
+    app.get('/user/:email', async (req, res) => {
+      const email = req.params.email
+      const result = await usersCollection.findOne({ email })
+      res.send(result)
+    })
 
     //Get rooms data
     app.get('/rooms', async (req, res) => {
@@ -102,9 +110,9 @@ async function run() {
       res.send(result)
     })
     //get room for host 
-    app.get('/rooms/:email',async(req,res)=>{
+    app.get('/rooms/:email', async (req, res) => {
       const email = req.params.email
-      const result = await roomsCollection.find({'host.email':email}).toArray //must use '' to access data without error
+      const result = await roomsCollection.find({ 'host.email': email }).toArray() //must use '' to access data without error
       res.send(result)
     })
     //Get single room data
@@ -119,6 +127,40 @@ async function run() {
       const result = await roomsCollection.insertOne(room)
       res.send(result)
     })
+    //update room booking status
+    app.patch('/rooms/status/:id', async (req, res) => {
+      const id = req.params.id
+      const status = req.body.status
+      const query = { _id: new ObjectId(id) }
+      const updatedDoc = {
+        $set: {
+          booked: status,
+        },
+      }
+      const result = await roomsCollection.updateOne(query, updatedDoc)
+      res.send(result)
+    })
+
+    // Generate stripe secret for stripe payment
+    app.post('/create-payment-intent', verifyToken, async (req, res) => {
+      const { price } = req.body
+      const amount = parseInt(price * 100)// converted the amount to cent as STRIPE performs operation in cent
+      if (!price || amount < 1) return
+      const { client_secret } = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card'],
+      })
+      res.send({ clientSecret: client_secret })
+    })
+
+    //Save booking into booking collection
+    app.post('/bookings'), verifyToken, async (req, res) => {
+      const booking = req.body
+      const result = await bookingsCollection.insertOne(booking)
+      //send email
+      res.send(result)
+    }
 
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 })
