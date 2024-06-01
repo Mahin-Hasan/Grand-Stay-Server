@@ -127,19 +127,7 @@ async function run() {
       const result = await roomsCollection.insertOne(room)
       res.send(result)
     })
-    //update room booking status
-    app.patch('/rooms/status/:id', async (req, res) => {
-      const id = req.params.id
-      const status = req.body.status
-      const query = { _id: new ObjectId(id) }
-      const updatedDoc = {
-        $set: {
-          booked: status,
-        },
-      }
-      const result = await roomsCollection.updateOne(query, updatedDoc)
-      res.send(result)
-    })
+
 
     // Generate stripe secret for stripe payment
     app.post('/create-payment-intent', verifyToken, async (req, res) => {
@@ -155,12 +143,42 @@ async function run() {
     })
 
     //Save booking into booking collection
-    app.post('/bookings'), verifyToken, async (req, res) => {
+    app.post('/bookings', verifyToken, async (req, res) => {
       const booking = req.body
       const result = await bookingsCollection.insertOne(booking)
       //send email
       res.send(result)
-    }
+    })
+    //update room booking status
+    app.patch('/rooms/status/:id', async (req, res) => {
+      const id = req.params.id
+      const status = req.body.status
+      const query = { _id: new ObjectId(id) }
+      const updatedDoc = {
+        $set: {
+          booked: status,
+        },
+      }
+      const result = await roomsCollection.updateOne(query, updatedDoc)
+      res.send(result)
+    })
+
+    //get all bookings for guest
+    app.get('bookings', verifyToken, async (req, res) => {
+      const email = req.query.email
+      if (!email) return res.send([])
+      const query = { 'guest.email': email } //must maintain the structure as stored in the database
+      const result = await bookingsCollection.find(query).toArray()
+      res.send(result)
+    })
+    //get all bookings for host
+    app.get('bookings/host', verifyToken, async (req, res) => {
+      const email = req.query.email
+      if (!email) return res.send([])
+      const query = { host: email } 
+      const result = await bookingsCollection.find(query).toArray()
+      res.send(result)
+    })
 
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 })
