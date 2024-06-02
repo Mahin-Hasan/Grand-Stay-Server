@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken')
 const morgan = require('morgan')
 const port = process.env.PORT || 8000
 const stripe = require('stripe').Stripe(process.env.PAYMENT_SECRET_KEY)
+const nodemailer = require('nodemailer')
 
 // middleware
 const corsOptions = {
@@ -35,6 +36,30 @@ const verifyToken = async (req, res, next) => {
   })
 }
 
+//Tried send email
+// const sendEmail = () => {
+//   const transporter = nodemailer.createTransport({
+//     service: 'gmail',
+//     host: 'smtp.gmail.com',
+//     port: 587,
+//     secure: false,
+//     auth: {
+//       user: process.env.USER,
+//       pass: process.env.PASS,
+//     },
+//   })
+
+//   //verify connection
+//   transporter.verify((error, success) => {
+//     if (error) {
+//       console.log(error);
+//     } else {
+//       console.log('Server is ready to take emails', success);
+//     }
+//   })
+// }
+
+
 const client = new MongoClient(process.env.DB_URI, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -43,6 +68,7 @@ const client = new MongoClient(process.env.DB_URI, {
   },
 })
 async function run() {
+  // sendEmail()
   try {
     const usersCollection = client.db('GrandStayDB').collection('users')
     const roomsCollection = client.db('GrandStayDB').collection('rooms')
@@ -237,6 +263,33 @@ async function run() {
       res.send(result)
     })
 
+
+    // Admin Stat Data
+    app.get('/admin-stat', verifyToken, verifyAdmin, async (req, res) => {
+      const bookingsDetails = await bookingsCollection
+        .find({}, { projection: { date: 1, price: 1 } })
+        .toArray()
+      const userCount = await usersCollection.countDocuments()
+      const roomCount = await roomsCollection.countDocuments()
+      const totalSale = bookingsDetails.reduce(
+        (sum, data) => sum + data.price,
+        0
+      )
+
+      const chartData = bookingsDetails.map(data => {
+        const day = new Date(data.date).getDate()
+        const month = new Date(data.date).getMonth() + 1
+        return [day + '/' + month, data.price]
+      })
+      chartData.unshift(['Day', 'Sale'])
+      res.send({
+        totalSale,
+        bookingCount: bookingsDetails.length,
+        userCount,
+        roomCount,
+        chartData,
+      })
+    })
 
 
     // Send a ping to confirm a successful connection
