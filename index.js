@@ -47,6 +47,26 @@ async function run() {
     const usersCollection = client.db('GrandStayDB').collection('users')
     const roomsCollection = client.db('GrandStayDB').collection('rooms')
     const bookingsCollection = client.db('GrandStayDB').collection('bookings')
+
+    // Middlewares for logged user role verification
+    //for Admins
+    const verifyAdmin = async (req, res, next) => {
+      const user = req.user
+      const query = { email: user?.email }
+      const result = await usersCollection.findOne(query)
+      if (!result || result?.role !== 'admin') return res.status(401).send({ message: 'unauthorized access' })
+      next()
+    }
+    //for Hosts
+    const verifyHost = async (req, res, next) => {
+      const user = req.user
+      const query = { email: user?.email }
+      const result = await usersCollection.findOne(query)
+      if (!result || result?.role !== 'host') return res.status(401).send({ message: 'unauthorized access' })
+      next()
+    }
+
+
     // auth related api
     app.post('/jwt', async (req, res) => {
       const user = req.body
@@ -125,7 +145,7 @@ async function run() {
       res.send(result)
     })
     //get room for host 
-    app.get('/rooms/:email', async (req, res) => {
+    app.get('/rooms/:email', verifyToken, verifyHost, async (req, res) => { // verifyToken must be used or else verifyHost will not function properly
       const email = req.params.email
       const result = await roomsCollection.find({ 'host.email': email }).toArray() //must use '' to access data without error
       res.send(result)
@@ -196,7 +216,7 @@ async function run() {
     })
 
     //get all users
-    app.get('/users', verifyToken, async (req, res) => {
+    app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray()
       res.send(result)
     })
