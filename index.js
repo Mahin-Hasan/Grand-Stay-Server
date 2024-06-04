@@ -189,6 +189,27 @@ async function run() {
       res.send(result)
     })
 
+    // Update A room
+    app.put('/rooms/:id', verifyToken, async (req, res) => {
+      const room = req.body
+      console.log(room)
+
+      const filter = { _id: new ObjectId(req.params.id) }
+      const options = { upsert: true }
+      const updateDoc = {
+        $set: room,
+      }
+      const result = await roomsCollection.updateOne(filter, updateDoc, options)
+      res.send(result)
+    })
+    // delete a room
+    app.delete('/rooms/:id', verifyToken, async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await roomsCollection.deleteOne(query)
+      res.send(result)
+    })
+
 
     // Generate stripe secret for stripe payment
     app.post('/create-payment-intent', verifyToken, async (req, res) => {
@@ -240,7 +261,13 @@ async function run() {
       const result = await bookingsCollection.find(query).toArray()
       res.send(result)
     })
-
+    // delete a booking
+    app.delete('/bookings/:id', verifyToken, async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await bookingsCollection.deleteOne(query)
+      res.send(result)
+    })
     //get all users
     app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray()
